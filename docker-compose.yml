@@ -1,0 +1,104 @@
+services:
+  traefik:
+    image: traefik:v3.0
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=williamtijesuni@gmail.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "81:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./letsencrypt:/letsencrypt"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    labels:
+      - "traefik.http.routers.frontend.rule=Host(`liberttinnii.xyz`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=myresolver"
+    environment:
+      - "${PORT}:${PORT}"
+      - AUTH_API_ADDRESS=${AUTH_API_ADDRESS}
+      - TODOS_API_ADDRESS={TODOS_API_ADDRESS}
+      - ZIPKIN_URL=http://zipkin:9411/api/v2/spans
+    depends_on:
+      - auth-api
+      - todos-api
+      - zipkin
+
+  auth-api:
+    build:
+      context: ./auth-api
+      dockerfile: Dockerfile
+    labels:
+      - "traefik.http.routers.auth-api.rule=Host(`auth.liberttinnii.xyz`)"
+      - "traefik.http.routers.auth-api.entrypoints=websecure"
+      - "traefik.http.routers.auth-api.tls.certresolver=myresolver"
+    environment:
+      - ${AUTH_API_PORT}:${AUTH_API_PORT}
+      - JWT_SECRET=${JWT_SECRET}
+      - USERS_API_ADDRESS=${USERS_API_ADDRESS}
+      - ZIPKIN_URL=http://zipkin:9411/api/v2/spans
+    depends_on:
+      - users-api
+
+  todos-api:
+    build:
+      context: ./todos-api
+      dockerfile: Dockerfile
+    labels:
+      - "traefik.http.routers.todos-api.rule=Host(`todos.liberttinnii.xyz`)"
+      - "traefik.http.routers.todos-api.entrypoints=websecure"
+      - "traefik.http.routers.todos-api.tls.certresolver=myresolver"
+    environment:
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_CHANNEL=${REDIS_CHANNEL}
+      - ZIPKIN_URL=http://zipkin:9411/api/v2/spans
+    depends_on:
+      - redis-queue
+      - zipkin
+
+  users-api:
+    build:
+      context: ./users-api
+      dockerfile: Dockerfile
+    labels:
+      - "traefik.http.routers.users-api.rule=Host(`users.liberttinnii.xyz`)"
+      - "traefik.http.routers.users-api.entrypoints=websecure"
+      - "traefik.http.routers.users-api.tls.certresolver=myresolver"
+    environment:
+      - SERVER_PORT=${SERVER_PORT}
+      - JWT_SECRET=${JWT_SECRET}
+
+  log-message-processor:
+    build:
+      context: ./log-message-processor
+      dockerfile: Dockerfile
+    environment:
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_CHANNEL=${REDIS_CHANNEL}
+    depends_on:
+      - redis-queue
+    labels:
+      - "traefik.enable=false" 
+
+  redis-queue:
+    image: redis:latest
+    ports:
+       - "${REDIS_PORT}:${REDIS_PORT}"
+
+  zipkin:
+    image: openzipkin/zipkin
+    ports:
+      - "9411:9411"
