@@ -21,7 +21,7 @@ services:
       - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
       - "--certificatesresolvers.myresolver.acme.email=williamtijesuni@gmail.com"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
-       - "--providers.docker.defaultRule=Host(`liberttinnii.xyz`)"
+      - "--providers.docker.defaultRule=Host(`liberttinnii.xyz`)"
     ports:
       - "80:80"
       - "443:443"
@@ -29,7 +29,7 @@ services:
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "./letsencrypt:/letsencrypt"
-      -" /var/run/docker.sock:/var/run/docker.sock"
+  
 
   frontend:
     build:
