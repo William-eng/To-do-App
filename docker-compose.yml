@@ -3,18 +3,25 @@ services:
     image: traefik:v2.10
     labels:
       - "traefik.http.routers.traefik.rule=Host(`traefik.liberttinnii.xyz`)"
+      - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=*"
+      - "traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS"
+      - "traefik.http.middlewares.cors.headers.accesscontrolallowheaders=Content-Type,Authorization"
       - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.middlewares.cors.headers.accesscontrolmaxage=100"
       - "traefik.http.routers.traefik.entrypoints=websecure"
       - "traefik.http.routers.traefik.tls.certresolver=myresolver"
 
     command:
       - "--api.insecure=true"
+      - "--log.level=DEBUG"
       - "--providers.docker=true"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
       - "--certificatesresolvers.myresolver.acme.email=williamtijesuni@gmail.com"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+       - "--providers.docker.defaultRule=Host(`liberttinnii.xyz`)"
     ports:
       - "80:80"
       - "443:443"
@@ -31,12 +38,19 @@ services:
     labels:
       - "traefik.http.routers.frontend.rule=Host(`liberttinnii.xyz`)"
       - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.services.frontend.loadbalancer.server.port=8080"
       - "traefik.http.routers.frontend.tls.certresolver=myresolver"
     environment:
       - 8080:8080
-      - AUTH_API_ADDRESS=http://auth-api:8081
-      - TODOS_API_ADDRESS={TODOS_API_ADDRESS}
+      - VITE_TODOS_API_ADDRESS=https://liberttinnii.xyz/api/todos
+      - VITE_USERS_API_ADDRESS=https://liberttinnii.xyz/api/users
+      - VITE_AUTH_API_ADDRESS=https://liberttinnii.xyz/api/auth
+      - HOST=0.0.0.0
       - ZIPKIN_URL=http://zipkin:9411/api/v2/spans
+    command: sh -c "npm run dev -- --host 0.0.0.0"
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - auth-api
       - todos-api
@@ -51,8 +65,17 @@ services:
       - "traefik.http.routers.auth-api.entrypoints=websecure"
       - "traefik.http.routers.auth-api.tls.certresolver=myresolver"
       - "traefik.http.services.auth-api.loadbalancer.server.port=8081"
+      - "traefik.http.middlewares.auth-stripprefix.stripprefix.prefixes=/api/auth"
+      - "traefik.http.middlewares.auth-stripprefix.stripprefix.forceSlash=false"
+      - "traefik.http.routers.auth.middlewares=auth-stripprefix,cors"
+      - "traefik.http.routers.auth.entrypoints=websecure"
+      - "traefik.http.routers.auth.tls.certresolver=letsencryptresolver"
+      - "traefik.http.routers.auth-direct.service=auth"
+      - "traefik.http.routers.auth-direct.middlewares=cors"
+      - "traefik.http.routers.auth-direct.rule=Host(`liberttinnii.xyz`) && (Path(`/login`) || Path(`/register`))"
+      
     ports:
-      - 8081:8081
+      - "127.0.0.1:8081:8081"
     environment:
       - 8081:8081
       - JWT_SECRET=${JWT_SECRET}
@@ -67,8 +90,17 @@ services:
       dockerfile: Dockerfile
     labels:
       - "traefik.http.routers.todos-api.rule=Host(`todos.liberttinnii.xyz`)"
-      - "traefik.http.routers.todos-api.entrypoints=websecure"
-      - "traefik.http.routers.todos-api.tls.certresolver=myresolver"
+      - "traefik.http.services.todos.loadbalancer.server.port=8082"
+      - "traefik.http.middlewares.todos-stripprefix.stripprefix.prefixes=/api/todos"
+      - "traefik.http.routers.todos.middlewares=todos-stripprefix"
+      - "traefik.http.routers.todos.entrypoints=websecure"
+      - "traefik.http.routers.todos.tls.certresolver=letsencryptresolver"
+      - "traefik.http.routers.todos-direct.rule=Host(`liberttinnii.xyz`) && Path(`/todos`)"
+      - "traefik.http.routers.todos-direct.service=todos"
+      - "traefik.http.routers.todos-direct.entrypoints=websecure"
+      - "traefik.http.routers.todos-direct.tls.certresolver=letsencryptresolver"
+      - "traefik.http.routers.todos-direct.middlewares=cors"
+      
     environment:
       - JWT_SECRET=${JWT_SECRET}
       - REDIS_HOST=${REDIS_HOST}
@@ -87,6 +119,7 @@ services:
       - "traefik.http.routers.users-api.rule=Host(`users.liberttinnii.xyz`)"
       - "traefik.http.routers.users-api.entrypoints=websecure"
       - "traefik.http.routers.users-api.tls.certresolver=myresolver"
+      - "traefik.http.routers.users.middlewares=users-stripprefix"
       - "traefik.http.services.users-api.loadbalancer.server.port=8083"
     environment:
       - SERVER_PORT=${SERVER_PORT}
