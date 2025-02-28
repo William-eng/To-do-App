@@ -3,13 +3,13 @@ services:
     image: traefik:v2.10
     labels:
       - "traefik.enable=true"
- #     - "traefik.http.routers.traefik.rule=Host(`traefik.liberttinnii.xyz`)"
-#      - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=*"
- #     - "traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS"
-  #    - "traefik.http.middlewares.cors.headers.accesscontrolallowheaders=Content-Type,Authorization"
-#      - "traefik.http.routers.traefik.service=api@internal"
-  #    - "traefik.http.middlewares.cors.headers.accesscontrolmaxage=100"
-   #   - "traefik.http.middlewares.cors.headers.addvaryheader=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.liberttinnii.xyz`)"
+      - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=*"
+      - "traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS"
+      - "traefik.http.middlewares.cors.headers.accesscontrolallowheaders=Content-Type,Authorization"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.middlewares.cors.headers.accesscontrolmaxage=100"
+      - "traefik.http.middlewares.cors.headers.addvaryheader=true"
 
     command:
       - "--api.insecure=false"
@@ -50,10 +50,10 @@ services:
       - VITE_AUTH_API_ADDRESS=https://liberttinnii.xyz/api/auth
       - HOST=0.0.0.0
       - ZIPKIN_URL=http://zipkin:9411/api/v2/spans
-    #command: sh -c "npm run dev -- --host 0.0.0.0"
+    command: sh -c "npm run dev -- --host 0.0.0.0"
 
-   # extra_hosts:
-    #  - "host.docker.internal:host-gateway"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - auth-api
       - todos-api
@@ -70,10 +70,10 @@ services:
       - "traefik.http.routers.auth.tls.certresolver=myresolver"
       - "traefik.http.services.auth.loadbalancer.server.port=8081"
       - "traefik.http.middlewares.auth-stripprefix.stripprefix.prefixes=/api/auth"
-    #  - "traefik.http.middlewares.auth-stripprefix.stripprefix.forceSlash=false"
+      - "traefik.http.middlewares.auth-stripprefix.stripprefix.forceSlash=false"
       - "traefik.http.routers.auth.middlewares=auth-stripprefix,cors"
-    #  - "traefik.http.routers.auth.rule=Host(`liberttinnii.xyz`) && (Path(`/login`) || Path(`/register`))"
-    #  - "traefik.http.routers.auth.service=auth"
+      - "traefik.http.routers.auth.rule=Host(`liberttinnii.xyz`) && (Path(`/login`) || Path(`/register`))"
+      - "traefik.http.routers.auth.service=auth"
 
     ports:
       - "8081:8081"
