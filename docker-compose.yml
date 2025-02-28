@@ -1,9 +1,20 @@
+
 version: "3.8"
 
 services:
   traefik:
     image: "traefik:v2.10"
     container_name: "traefik"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.liberttinnii.xyz`)"
+      - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=*"
+      - "traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS"
+      - "traefik.http.middlewares.cors.headers.accesscontrolallowheaders=Content-Type,Authorization"
+      - "traefik.http.middlewares.cors.headers.accesscontrolmaxage=100"
+      - "traefik.http.middlewares.cors.headers.addvaryheader=true"
+
+
     command:
       - "--log.level=DEBUG"
       - "--api.insecure=false"
@@ -35,10 +46,11 @@ services:
     ports:
       - "8080:8080"
     environment:
+
       - VITE_TODOS_API_ADDRESS=https://liberttinnii.xyz/api/todos
       - VITE_USERS_API_ADDRESS=https://liberttinnii.xyz/api/users
       - VITE_AUTH_API_ADDRESS=https://liberttinnii.xyz/api/auth
-      - HOST=0.0.0.0
+
     depends_on:
       - auth-api
       - todos-api

@@ -4,14 +4,14 @@ FROM node:14.21.1-alpine
 
 WORKDIR /app
 
-COPY package*.json .
+COPY package*.json ./
 RUN npm install 
 
 
 
 
 # Copy all frontend files
-COPY . .
+COPY . ./
 
 # Expose the application port
 EXPOSE 8080
