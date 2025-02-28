@@ -1,148 +1,158 @@
+version: "3.8"
+
 services:
   traefik:
-    image: traefik:v2.10
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.traefik.rule=Host(`traefik.liberttinnii.xyz`)"
-      - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=*"
-      - "traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS"
-      - "traefik.http.middlewares.cors.headers.accesscontrolallowheaders=Content-Type,Authorization"
-      - "traefik.http.routers.traefik.service=api@internal"
-      - "traefik.http.middlewares.cors.headers.accesscontrolmaxage=100"
-      - "traefik.http.middlewares.cors.headers.addvaryheader=true"
-
+    image: "traefik:v2.10"
+    container_name: "traefik"
     command:
-      - "--api.insecure=false"
       - "--log.level=DEBUG"
+      - "--api.insecure=false"
       - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--certificatesresolvers.letsencryptresolver.acme.httpchallenge=true"
       - "--certificatesresolvers.letsencryptresolver.acme.httpchallenge.entrypoint=web"
-      - "--certificatesresolvers.myresolver.acme.email=williamtijesuni@gmail.com"
-      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
-      - "--providers.docker.defaultRule=Host(`liberttinnii.xyz`)"
+      - "--certificatesresolvers.letsencryptresolver.acme.email=admin@willy.online"
+      - "--certificatesresolvers.letsencryptresolver.acme.storage=/etc/traefik/acme.json"
     ports:
       - "80:80"
       - "443:443"
-      - "81:8000"
+    networks:
+      - web
     volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "./letsencrypt:/letsencrypt"
+      - /var/run/docker.sock:/var/run/docker.sock
+      - traefik-certificates:/etc/traefik
+    labels:
+      - "traefik.enable=true"
+
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
-    labels:
-      - "traefik.http.routers.frontend.rule=Host(`liberttinnii.xyz`)"
-      - "traefik.http.routers.frontend.entrypoints=websecure"
-      - "traefik.http.services.frontend.loadbalancer.server.port=8080"
-      - "traefik.http.routers.frontend.tls.certresolver=myresolver"
     environment:
-      - 8080:8080
-      - VITE_TODOS_API_ADDRESS=https://todos.liberttinnii.xyz
-      - VITE_USERS_API_ADDRESS=https://users.liberttinnii.xyz
-      - VITE_AUTH_API_ADDRESS=https://auth.liberttinnii.xyz
+      - VITE_TODOS_API_ADDRESS=https://liberttinnii.xyz/api/todos
+      - VITE_USERS_API_ADDRESS=https://liberttinnii.xyz/api/users
+      - VITE_AUTH_API_ADDRESS=https://liberttinnii.xyz/api/auth
       - HOST=0.0.0.0
-      - ZIPKIN_URL=http://zipkin:9411/api/v2/spans
-    command: sh -c "npm run dev -- --host 0.0.0.0"
-
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
       - auth-api
       - todos-api
-      - zipkin
+      - users-api
+    networks:
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`liberttinnii.xyz`)"
+      - "traefik.http.services.frontend.loadbalancer.server.port=8080"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=letsencryptresolver"
 
   auth-api:
     build:
       context: ./auth-api
       dockerfile: Dockerfile
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.auth-api.rule=Host(`auth.liberttinnii.xyz`)"
-      - "traefik.http.routers.auth-api.entrypoints=websecure"
-      - "traefik.http.routers.auth-api.tls.certresolver=myresolver"
-      - "traefik.http.services.auth-api.loadbalancer.server.port=8081"
-      - "traefik.http.middlewares.auth-stripprefix.stripprefix.prefixes=/api/auth"
-      - "traefik.http.middlewares.auth-stripprefix.stripprefix.forceSlash=false"
-      - "traefik.http.routers.auth-api.middlewares=auth-stripprefix,cors"
-      - "traefik.http.routers.auth-api.rule=Host(`liberttinnii.xyz`) && (Path(`/login`) || Path(`/register`))"
-      - "traefik.http.routers.auth-api.service=auth-api"
-
     ports:
       - "8081:8081"
     environment:
       - AUTH_API_PORT=8081
-      - JWT_SECRET=${JWT_SECRET}
+      - JWT_SECRET=myfancysecret
       - USERS_API_ADDRESS=http://users-api:8083
-      - ZIPKIN_URL=http://zipkin:9411
     depends_on:
       - users-api
+    networks:
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth.rule=Host(`liberttinnii.xyz`) && PathPrefix(`/api/auth`)"
+      - "traefik.http.services.auth.loadbalancer.server.port=8081"
+      - "traefik.http.middlewares.auth-stripprefix.stripprefix.prefixes=/api/auth"
+      - "traefik.http.routers.auth.middlewares=auth-stripprefix"
+      - "traefik.http.routers.auth.entrypoints=websecure"
+      - "traefik.http.routers.auth.tls.certresolver=letsencryptresolver"
 
   todos-api:
     build:
       context: ./todos-api
       dockerfile: Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      - JWT_SECRET=myfancysecret
+      - REDIS_HOST=redis-queue
+      - REDIS_PORT=6379
+      - REDIS_CHANNEL=log_channel
+    depends_on:
+      - redis-queue
+    networks:
+      - web
     labels:
-      - "traefik.http.routers.todos-api.rule=Host(`todos.liberttinnii.xyz`)"
+      - "traefik.enable=true"
+      
+      # Route for `/api/todos`
+      - "traefik.http.routers.todos.rule=Host(`liberttinnii.xyz`) && PathPrefix(`/api/todos`)"
       - "traefik.http.services.todos.loadbalancer.server.port=8082"
       - "traefik.http.middlewares.todos-stripprefix.stripprefix.prefixes=/api/todos"
       - "traefik.http.routers.todos.middlewares=todos-stripprefix"
       - "traefik.http.routers.todos.entrypoints=websecure"
-      - "traefik.http.routers.todos-api.tls.certresolver=myresolver"
-      - "traefik.http.routers.todos-direct.rule=Host(`liberttinnii.xyz`) && Path(`/todos`)"
+      - "traefik.http.routers.todos.tls.certresolver=letsencryptresolver"
+
+      # Route for `/todos`
+      - "traefik.http.routers.todos-direct.rule=Host(`liberttinnii.xyz`) && PathPrefix(`/todos`)"
       - "traefik.http.routers.todos-direct.service=todos"
       - "traefik.http.routers.todos-direct.entrypoints=websecure"
       - "traefik.http.routers.todos-direct.tls.certresolver=letsencryptresolver"
-      - "traefik.http.routers.todos-direct.middlewares=cors"
-      
-    environment:
-      - JWT_SECRET=${JWT_SECRET}
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
-      - REDIS_CHANNEL=${REDIS_CHANNEL}
-      - ZIPKIN_URL=http://zipkin:9411/api/v2/spans
-    depends_on:
-      - redis-queue
-      - zipkin
 
   users-api:
     build:
       context: ./users-api
       dockerfile: Dockerfile
-    labels:
-      - "traefik.http.routers.users-api.rule=Host(`users.liberttinnii.xyz`)"
-      - "traefik.http.routers.users-api.entrypoints=websecure"
-      - "traefik.http.routers.users-api.tls.certresolver=myresolver"
-      - "traefik.http.services.users-api.loadbalancer.server.port=8083"
+    ports:
+      - "8083:8083"
     environment:
-      - SERVER_PORT=${SERVER_PORT}
-      - JWT_SECRET=${JWT_SECRET}
+      - SERVER_PORT=8083
+      - JWT_SECRET=myfancysecret
+    networks:
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.users.rule=Host(`liberttinnii.xyz`) && PathPrefix(`/api/users`)"
+      - "traefik.http.services.users.loadbalancer.server.port=8083"
+      - "traefik.http.middlewares.users-stripprefix.stripprefix.prefixes=/api/users"
+      - "traefik.http.routers.users.middlewares=users-stripprefix"
+      - "traefik.http.routers.users.entrypoints=websecure"
+      - "traefik.http.routers.users.tls.certresolver=letsencryptresolver"
 
   log-message-processor:
     build:
       context: ./log-message-processor
       dockerfile: Dockerfile
     environment:
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
-      - REDIS_CHANNEL=${REDIS_CHANNEL}
+      - REDIS_HOST=redis-queue
+      - REDIS_PORT=6379
+      - REDIS_CHANNEL=log_channel
     depends_on:
       - redis-queue
-    labels:
-      - "traefik.enable=false" 
+    networks:
+      - web
 
   redis-queue:
-    image: redis:latest
+    image: "redis:alpine"
     ports:
-       - "${REDIS_PORT}:${REDIS_PORT}"
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - web
 
-  zipkin:
-    image: openzipkin/zipkin
-    ports:
-      - "9411:9411"
+networks:
+  web:
+    driver: bridge
+
+volumes:
+  traefik-certificates:
+  redis-data:
