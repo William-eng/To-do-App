@@ -119,10 +119,10 @@ services:
       context: ./users-api
       dockerfile: Dockerfile
     labels:
-      - "traefik.http.routers.users-api.rule=Host(`liberttinnii.xyz`)  && PathPrefix(`/api/users`)"
-      - "traefik.http.routers.users-api.entrypoints=websecure"
-      - "traefik.http.routers.users-api.tls.certresolver=myresolver"
-      - "traefik.http.services.users-api.loadbalancer.server.port=8083"
+      - "traefik.http.routers.users.rule=Host(`liberttinnii.xyz`)  && PathPrefix(`/api/users`)"
+      - "traefik.http.routers.users.entrypoints=websecure"
+      - "traefik.http.routers.users.tls.certresolver=myresolver"
+      - "traefik.http.services.users.loadbalancer.server.port=8083"
       - "traefik.http.middlewares.users-stripprefix.stripprefix.prefixes=/api/users"
       - "traefik.http.routers.users.middlewares=users-stripprefix"
     environment:
